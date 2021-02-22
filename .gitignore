@@ -1,0 +1,8 @@
+obj
+[Bb]in
+.vs
+*.user
+Build/Build.rsp
+Projects/Library/Publish/
+Projects/Library/Output
+Projects/Library/Sources/Automation.Core/lib

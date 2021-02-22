@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>Mabna.Communication.Tcp.v1</AssemblyName>
+    <RootNamespace>Mabna.Communication.Tcp</RootNamespace>
+    <Authors>Mabna</Authors>
+    <Copyright>Copyright 2004-2021 Mabna</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Threading.Channels" Version="5.0.0" />
+  </ItemGroup>
+
+</Project>
