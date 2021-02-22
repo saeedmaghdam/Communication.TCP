@@ -13,7 +13,5 @@ namespace Mabna.Communication.Tcp.Framework
         Task StartAsync(CancellationToken cancellationToken);
 
         void Shutdown();
-
-        ValueTask<PacketModel> GetCommandAsync(CancellationToken cancellationToken);
     }
 }

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Mabna.Communication.Tcp.Common;
 using Mabna.Communication.Tcp.Framework;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -28,12 +27,14 @@ namespace Communication.Tcp.Tests
 
             _ipAddress = IPAddress.Parse("127.0.0.1");
             _tcpServer = _tcpServerBuilder.IPAddress(_ipAddress).Port(11000).Build();
+            int totalPackets = 0;
             _tcpServer.PacketReceived += (sender, args) =>
             {
-
                 var packet = args.Packet;
-                var command = packet.Command.ToArray().DisplayByteArrayAsHex();
-                var data = packet.Data.ToArray().DisplayByteArrayAsHex();
+
+                var commandArray = packet.GetBytes().ToArray();
+                if (commandArray.Any())
+                    _logger.LogInformation($"{string.Join(" ", BitConverter.ToString(commandArray).Split("-").Select(x => "0x" + x))}\r\nPackets received: {++totalPackets}");
             };
         }
 
@@ -88,29 +89,7 @@ namespace Communication.Tcp.Tests
 
             _logger.LogInformation($"Sent totally {totalPacketsSentByThreads} packets in {sw.ElapsedMilliseconds} ms.");
 
-            Task.Delay(5000, cancellationToken).GetAwaiter().GetResult();
-
-            // Read received packets
-            int totalPackets = 0;
-            do
-            {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
-
-                try
-                {
-                    var command = await _tcpServer.GetCommandAsync(cancellationToken);
-
-                    var commandArray = command.GetBytes().ToArray();
-                    if (commandArray.Any())
-                        _logger.LogInformation($"{string.Join(" ", BitConverter.ToString(commandArray).Split("-").Select(x => "0x" + x))}\r\nPackets received: {++totalPackets}");
-                }
-                catch
-                {
-                    // ignore
-                }
-            }
-            while (true);
+            await Task.Delay(3_600_000, cancellationToken);
         }
 
         public Task StopAsync(CancellationToken cancellationToken)

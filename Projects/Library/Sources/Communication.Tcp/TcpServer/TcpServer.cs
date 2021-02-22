@@ -147,10 +147,5 @@ namespace Mabna.Communication.Tcp.TcpServer
             _isListening = false;
             _allDone.Set();
         }
-
-        public async ValueTask<PacketModel> GetCommandAsync(CancellationToken cancellationToken)
-        {
-            return await _packetProcessor.GetCommandAsync(cancellationToken);
-        }
     }
 }

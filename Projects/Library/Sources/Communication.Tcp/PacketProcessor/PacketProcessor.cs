@@ -25,7 +25,6 @@ namespace Mabna.Communication.Tcp.PacketProcessor
         private readonly IPacketParser _packetParser;
         private PacketConfig _packetConfig;
         private readonly Channel<Tuple<System.Net.Sockets.Socket, byte[]>> _endPointBytesChannel;
-        private readonly Channel<PacketModel> _commandChannel;
         private Dictionary<EndPoint, List<byte>> _buffer = new Dictionary<EndPoint, List<byte>>();
         private State _state;
         private int _stateIndex;
@@ -41,11 +40,6 @@ namespace Mabna.Communication.Tcp.PacketProcessor
             _callbackActionsDictionary = new ConcurrentDictionary<System.Net.Sockets.Socket, Action<PacketReceivedEventArgs>>();
 
             _endPointBytesChannel = Channel.CreateBounded<Tuple<System.Net.Sockets.Socket, byte[]>>(new BoundedChannelOptions(100)
-            {
-                FullMode = BoundedChannelFullMode.Wait
-            });
-
-            _commandChannel = Channel.CreateBounded<PacketModel>(new BoundedChannelOptions(1024)
             {
                 FullMode = BoundedChannelFullMode.Wait
             });
@@ -79,11 +73,6 @@ namespace Mabna.Communication.Tcp.PacketProcessor
                 _callbackActionsDictionary.TryAdd(socket, callbackAction);
 
             await _endPointBytesChannel.Writer.WriteAsync(new Tuple<System.Net.Sockets.Socket, byte[]>(socket, bytes), cancellationToken);
-        }
-
-        public async ValueTask<PacketModel> GetCommandAsync(CancellationToken cancellationToken)
-        {
-            return await _commandChannel.Reader.ReadAsync(cancellationToken);
         }
 
         private async ValueTask ProcessAsync(System.Net.Sockets.Socket socket, byte[] bytes, CancellationToken cancellationToken)
@@ -163,7 +152,6 @@ namespace Mabna.Communication.Tcp.PacketProcessor
 
                             if (_packetParser.TryParse(_packetConfig, _buffer[endPoint].ToArray(), out var packetModel))
                             {
-                                await _commandChannel.Writer.WriteAsync(packetModel, cancellationToken);
                                 _buffer.Clear();
 
                                 if (_callbackActionsDictionary.TryGetValue(socket, out var action))
