@@ -17,10 +17,17 @@ namespace Mabna.Communication.Tcp.TcpClient
         private readonly System.Net.Sockets.Socket _socket;
 
         public event EventHandler<PacketSentEventArgs> PacketSent;
+        public event EventHandler<PacketFailedToSendEventArg> PacketFailedToSend;
 
         private void OnPacketSent(PacketSentEventArgs e)
         {
             EventHandler<PacketSentEventArgs> handler = PacketSent;
+            handler?.Invoke(this, e);
+        }
+
+        private void OnPacketFailedToSend(PacketFailedToSendEventArg e)
+        {
+            EventHandler<PacketFailedToSendEventArg> handler = PacketFailedToSend;
             handler?.Invoke(this, e);
         }
 
@@ -54,7 +61,10 @@ namespace Mabna.Communication.Tcp.TcpClient
                 while (tryRemaining-- == 0);
 
                 if (!_socket.Connected)
+                {
+                    RaisePacketFailedToSendEvent(_socket, packet);
                     return false;
+                }
             }
 
             var data = packet.GetBytes().ToArray();
@@ -77,8 +87,12 @@ namespace Mabna.Communication.Tcp.TcpClient
                 }
             }
             while (tryRemaining-- == 0);
+
             if (!isSent)
+            {
+                RaisePacketFailedToSendEvent(_socket, packet);
                 return false;
+            }
 
             return true;
         }
@@ -124,6 +138,15 @@ namespace Mabna.Communication.Tcp.TcpClient
             {
                 // ignored
             }
+        }
+
+        private void RaisePacketFailedToSendEvent(Socket socket, PacketModel packet)
+        {
+            OnPacketFailedToSend(new PacketFailedToSendEventArg()
+            {
+                Socket = socket,
+                Packet = packet
+            });
         }
     }
 }
