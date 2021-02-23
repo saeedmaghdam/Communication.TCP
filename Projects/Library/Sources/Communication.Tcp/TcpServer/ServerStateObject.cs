@@ -1,7 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Threading;
+using Mabna.Communication.Tcp.Framework;
 
-namespace Mabna.Communication.Tcp.Framework
+namespace Mabna.Communication.Tcp.TcpServer
 {
     public class StateObject
     {
@@ -14,8 +15,6 @@ namespace Mabna.Communication.Tcp.Framework
             get => _buffer;
             set => _buffer = value;
         }
-
-        public List<byte> Cache => _cache;
 
         public System.Net.Sockets.Socket Socket
         {
@@ -32,12 +31,6 @@ namespace Mabna.Communication.Tcp.Framework
             get;
             set;
         }
-
-        public bool IsFinishedReceiving
-        {
-            get;
-            set;
-        } = false;
 
         public StateObject(System.Net.Sockets.Socket socket)
         {

@@ -11,6 +11,6 @@ namespace Mabna.Communication.Tcp.Framework
 
         ValueTask StartAsync(CancellationToken cancellationToken);
 
-        ValueTask AddDataAsync(System.Net.Sockets.Socket socket, byte[] bytes, Action<PacketReceivedEventArgs> callbackAction, CancellationToken cancellationToken);
+        ValueTask AddDataAsync(System.Net.Sockets.Socket socket, byte[] bytes, int bytesReceived, Action<PacketReceivedEventArgs> callbackAction, CancellationToken cancellationToken);
     }
 }

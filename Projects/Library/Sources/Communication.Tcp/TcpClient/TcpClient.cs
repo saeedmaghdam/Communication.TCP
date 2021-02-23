@@ -14,10 +14,14 @@ namespace Mabna.Communication.Tcp.TcpClient
     {
         private readonly SocketConfig _socketConfig;
         private readonly PacketConfig _packetConfig;
-        private readonly System.Net.Sockets.Socket _socket;
+        private readonly Socket _socket;
+        private readonly IPacketParser _packetParser;
+
+        private readonly AckCommand _ack;
 
         public event EventHandler<PacketSentEventArgs> PacketSent;
         public event EventHandler<PacketFailedToSendEventArg> PacketFailedToSend;
+        public event EventHandler<DataSentEventArg> DataSent;
 
         private void OnPacketSent(PacketSentEventArgs e)
         {
@@ -31,17 +35,28 @@ namespace Mabna.Communication.Tcp.TcpClient
             handler?.Invoke(this, e);
         }
 
-        public TcpClient(SocketConfig socketConfig, PacketConfig packetConfig, IPacketParser packetProcessor)
+        private void OnDataSent(DataSentEventArg e)
         {
+            EventHandler<DataSentEventArg> handler = DataSent;
+            handler?.Invoke(this, e);
+        }
+
+        public TcpClient(SocketConfig socketConfig, PacketConfig packetConfig, IPacketParser packetParser)
+        {
+            _ack = new AckCommand(packetConfig);
+
             _socketConfig = socketConfig;
             _packetConfig = packetConfig;
-            _socket = new System.Net.Sockets.Socket(_socketConfig.IPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _packetParser = packetParser;
+            _socket = new Socket(_socketConfig.IPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             _socket.ReceiveTimeout = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
             _socket.Bind(new IPEndPoint(_socketConfig.IPAddress, 0));
         }
 
-        public async Task<bool> SendAsync(PacketModel packet, CancellationToken cancellationToken)
+        public async Task<ClientSendAsyncResult> SendAsync(PacketModel packet, CancellationToken cancellationToken)
         {
+            var state = new ClientStateObject(_socket);
+
             var tryRemaining = 10;
 
             // Try to connect to socket
@@ -61,25 +76,50 @@ namespace Mabna.Communication.Tcp.TcpClient
                 while (tryRemaining-- == 0);
 
                 if (!_socket.Connected)
-                {
-                    RaisePacketFailedToSendEvent(_socket, packet);
-                    return false;
-                }
+                    return RaisePacketFailedToSendEvent(state, packet);
             }
 
-            var data = packet.GetBytes().ToArray();
-
-            var state = new StateObject(_socket);
             state.Packet = packet;
 
             tryRemaining = 10;
-            var isSent = false;
             do
             {
                 try
                 {
-                    _socket.BeginSend(data, 0, data.Length, SocketFlags.None, new AsyncCallback(SendCallback), state);
-                    isSent = true;
+                    var sendArgs = new SocketAsyncEventArgs();
+                    var bytes = packet.GetBytes().ToArray();
+                    sendArgs.SetBuffer(bytes, 0, bytes.Length);
+                    await _socket.SendAsync(new ClientSocketAwaitable(sendArgs));
+
+                    OnDataSent(new DataSentEventArg()
+                    {
+                        Bytes = bytes,
+                        BytesSent = bytes.Length,
+                        Socket = _socket
+                    });
+
+                    var receiveArgs = new SocketAsyncEventArgs();
+                    receiveArgs.SetBuffer(state.ReceiveBuffer);
+                    await _socket.ReceiveAsync(new ClientSocketAwaitable(receiveArgs));
+
+                    if (receiveArgs.BytesTransferred == 0)
+                        return RaisePacketFailedToSendEvent(state, packet);
+
+                    if (_packetParser.TryParse(_packetConfig, state.ReceiveBuffer, _ack.GetBytes().ToArray().Length, out var model))
+                    {
+                        if (_ack.GetBytes().SequenceEqual(model.GetBytes()))
+                        {
+                            state.SendAsyncResult = new ClientSendAsyncResult(true);
+
+                            OnPacketSent(new PacketSentEventArgs()
+                            {
+                                Socket = state.Socket,
+                                Packet = state.Packet
+                            });
+
+                            return new ClientSendAsyncResult(true);
+                        }
+                    }
                 }
                 catch
                 {
@@ -88,36 +128,16 @@ namespace Mabna.Communication.Tcp.TcpClient
             }
             while (tryRemaining-- == 0);
 
-            if (!isSent)
+            OnPacketFailedToSend(new PacketFailedToSendEventArg()
             {
-                RaisePacketFailedToSendEvent(_socket, packet);
-                return false;
-            }
+                Packet = state.Packet,
+                Socket = state.Socket
+            });
 
-            return true;
-        }
-        private void SendCallback(IAsyncResult ar)
-        {
-            try
-            {
-                var state = (StateObject)ar.AsyncState;
-                var socket = state.Socket;
-
-                socket.EndSend(ar);
-
-                OnPacketSent(new PacketSentEventArgs()
-                {
-                    Socket = socket,
-                    Packet = state.Packet
-                });
-            }
-            catch
-            {
-                // ignored
-            }
+            return RaisePacketFailedToSendEvent(state, packet);
         }
 
-        public async Task<bool> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken)
+        public async Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken)
         {
             var dataSize = BitConverter.GetBytes(data.Length);
             var commandArray = new byte[1] { command };
@@ -140,13 +160,15 @@ namespace Mabna.Communication.Tcp.TcpClient
             }
         }
 
-        private void RaisePacketFailedToSendEvent(Socket socket, PacketModel packet)
+        private ClientSendAsyncResult RaisePacketFailedToSendEvent(ClientStateObject state, PacketModel packet)
         {
             OnPacketFailedToSend(new PacketFailedToSendEventArg()
             {
-                Socket = socket,
+                Socket = state.Socket,
                 Packet = packet
             });
+
+            return state.SendAsyncResult;
         }
     }
 }

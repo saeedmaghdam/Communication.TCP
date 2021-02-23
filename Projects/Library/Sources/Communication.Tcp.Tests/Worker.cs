@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Mabna.Communication.Tcp.Framework;
+using Mabna.Communication.Tcp.TcpClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -13,11 +15,29 @@ namespace Communication.Tcp.Tests
 {
     public class Worker : IHostedService
     {
+        private const int TOTAL_THREADS = 100;
+        private const int TOTAL_PACKETS_PER_THREAD = 1000;
+
         private readonly ITcpServerBuilder _tcpServerBuilder;
         private readonly ITcpClientBuilder _tcpClientBuilder;
         private readonly ILogger<Worker> _logger;
         private readonly ITcpServer _tcpServer;
         private readonly IPAddress _ipAddress;
+
+        private long _totalPacketsCountedByPacketSentEvent;
+        private long _totalPacketsCountedByThread;
+        private int _totalPacketsReceivedByListener;
+        private long _totalPacketsFailedToSend;
+
+        private Stopwatch _sw;
+
+        private long _totalBytesSent;
+        private long _totalBytesReceived;
+
+        private List<Thread> _threads;
+
+        private CancellationToken _startCancellationToken;
+        private bool _isFinished = false;
 
         public Worker(ILogger<Worker> logger, ITcpServerBuilder tcpServerBuilder, ITcpClientBuilder tcpClientBuilder)
         {
@@ -27,14 +47,21 @@ namespace Communication.Tcp.Tests
 
             _ipAddress = IPAddress.Parse("127.0.0.1");
             _tcpServer = _tcpServerBuilder.IPAddress(_ipAddress).Port(11000).Build();
-            int totalPackets = 0;
+            _totalPacketsReceivedByListener = 0;
+            var stopWatch = new Stopwatch();
+
             _tcpServer.PacketReceived += (sender, args) =>
             {
                 var packet = args.Packet;
 
                 var commandArray = packet.GetBytes().ToArray();
                 if (commandArray.Any())
-                    _logger.LogInformation($"{string.Join(" ", BitConverter.ToString(commandArray).Split("-").Select(x => "0x" + x))}\r\nPackets received: {++totalPackets}");
+                    _logger.LogInformation($"{string.Join(" ", BitConverter.ToString(commandArray).Split("-").Select(x => "0x" + x))}\r\nPackets received: {++_totalPacketsReceivedByListener}");
+            };
+
+            _tcpServer.DataReceived += (sender, args) =>
+            {
+                Interlocked.Add(ref _totalBytesReceived, args.BytesReceived);
             };
         }
 
@@ -42,59 +69,119 @@ namespace Communication.Tcp.Tests
         {
             _tcpServer.StartAsync(cancellationToken);
 
-            // Try to send 10,000 packets
-            var threads = new List<Thread>();
-            int threadsCount = 100;
-            long totalPacketsSentByThreads = 0;
+            // Try to send packets
+            _threads = new List<Thread>();
             long packetData = 0;
-            for (int i = 0; i < threadsCount; i++)
+            _totalPacketsCountedByPacketSentEvent = 0;
+            _totalPacketsCountedByThread = 0;
+            for (int i = 0; i < TOTAL_THREADS; i++)
             {
-                threads.Add(new Thread(() =>
+                if (cancellationToken.IsCancellationRequested)
+                    return;
+
+                _threads.Add(new Thread(async () =>
                 {
                     var tcpClient = _tcpClientBuilder.Create().IPAddress(_ipAddress).Port(11000).Build();
                     tcpClient.PacketSent += (sender, args) =>
                     {
-                        Interlocked.Add(ref totalPacketsSentByThreads, 1);
+                        Interlocked.Add(ref _totalPacketsCountedByPacketSentEvent, 1);
+                    };
+                    tcpClient.DataSent += (sender, arg) =>
+                    {
+                        Interlocked.Add(ref _totalBytesSent, arg.BytesSent);
+                    };
+                    tcpClient.PacketFailedToSend += (sender, args) =>
+                    {
+                        Interlocked.Add(ref _totalPacketsFailedToSend, 1);
                     };
 
-                    for (int j = 0; j < 100; j++)
+                    for (int j = 0; j < TOTAL_PACKETS_PER_THREAD; j++)
                     {
                         Interlocked.Add(ref packetData, 1);
                         var data = Interlocked.Read(ref packetData);
 
                         int tryRemaining = 10;
-                        bool sent = false;
+                        ClientSendAsyncResult result = ClientSendAsyncResult.CreateDefaultInstance();
                         do
                         {
-                            sent = tcpClient.SendCommandAsync(0xAA, BitConverter.GetBytes(data), cancellationToken).Result;
-                            Task.Delay(10, cancellationToken).GetAwaiter().GetResult();
+                            if (cancellationToken.IsCancellationRequested)
+                                return;
+
+                            result = tcpClient.SendCommandAsync(0xAA, BitConverter.GetBytes(data), cancellationToken).Result;
+                            if (result.IsSent)
+                                Interlocked.Increment(ref _totalPacketsCountedByThread);
                         }
-                        while (!sent && tryRemaining-- == 0);
+                        while (!result.IsSent && tryRemaining-- == 0);
                     }
                 }));
             }
 
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
+            _sw = new Stopwatch();
+            _sw.Start();
 
             _logger.LogInformation("Sending packets ...");
 
-            for (int i = 0; i < threadsCount; i++)
-                threads[i].Start();
+            for (int i = 0; i < TOTAL_THREADS; i++)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    return;
 
-            for (int i = 0; i < threadsCount; i++)
-                threads[i].Join();
+                _threads[i].Start();
+            }
 
-            sw.Stop();
+            for (int i = 0; i < TOTAL_THREADS; i++)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    return;
 
-            _logger.LogInformation($"Sent totally {totalPacketsSentByThreads} packets in {sw.ElapsedMilliseconds} ms.");
+                _threads[i].Join();
+            }
 
-            await Task.Delay(3_600_000, cancellationToken);
+            _sw.Stop();
+
+            _isFinished = true;
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            do
+            {
+                await Task.Delay(500, CancellationToken.None);
+            }
+            while (!_threads.Select(x => x.ThreadState == System.Threading.ThreadState.Running).Any());
+
+            if (!_isFinished)
+            {
+                _logger.LogInformation($"=================================================================================================================");
+                _logger.LogError("Task is cancelled.");
+            }
+            _logger.LogInformation($"=================================================================================================================");
+
+            _logger.LogInformation($"Sent totally {_totalPacketsCountedByThread} packets in {_sw.ElapsedMilliseconds} ms which is counted by _threads.");
+            _logger.LogInformation($"Sent totally {_totalPacketsCountedByPacketSentEvent} packets in {_sw.ElapsedMilliseconds} ms which is counted by PacketSentEvent.");
+            _logger.LogInformation($"Received totally {_totalPacketsReceivedByListener} packets by listener's PacketReceivedEvent.");
+            _logger.LogInformation($"Totally {_totalPacketsFailedToSend} packets failed to send.");
+            _logger.LogInformation($"Total bytes sent:\t\t\t\t {_totalBytesSent.ToString("N0")}");
+            _logger.LogInformation($"Total bytes received:\t\t\t {_totalBytesReceived.ToString("N0")}");
+            _logger.LogInformation($"=================================================================================================================");
+
+            if (_totalPacketsCountedByThread != _totalPacketsCountedByPacketSentEvent)
+            {
+                _logger.LogError($"_totalPacketsCountedByThread != _totalPacketsCountedByPacketSentEvent => An error found in packets' sent, packets counted by awaited result in _threads ({_totalPacketsCountedByThread}) are not equal to packets counted by PacketSentEvent ({_totalPacketsCountedByPacketSentEvent}).");
+                _logger.LogInformation($"=================================================================================================================");
+            }
+
+            if (_totalPacketsReceivedByListener != _totalPacketsCountedByThread)
+            {
+                _logger.LogError($"_totalPacketsReceivedByListener != _totalPacketsCountedByThread => Totally received {_totalPacketsReceivedByListener} packets by listener which is not equal to {_totalPacketsCountedByThread} packets counted by await result in thread.");
+                _logger.LogInformation($"=================================================================================================================");
+            }
+
+            if (_totalPacketsReceivedByListener != _totalPacketsCountedByPacketSentEvent)
+            {
+                _logger.LogError($"_totalPacketsReceivedByListener != _totalPacketsCountedByPacketSentEvent => Totally received {_totalPacketsReceivedByListener} packets by listener which is not equal to {_totalPacketsCountedByPacketSentEvent} packets counted by await result in PacketSentEvent.");
+                _logger.LogInformation($"=================================================================================================================");
+            }
         }
     }
 }

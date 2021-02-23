@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Channels;
@@ -24,12 +25,12 @@ namespace Mabna.Communication.Tcp.PacketProcessor
 
         private readonly IPacketParser _packetParser;
         private PacketConfig _packetConfig;
-        private readonly Channel<Tuple<System.Net.Sockets.Socket, byte[]>> _endPointBytesChannel;
-        private Dictionary<EndPoint, List<byte>> _buffer = new Dictionary<EndPoint, List<byte>>();
+        private readonly Channel<Tuple<System.Net.Sockets.Socket, List<byte>>> _endPointBytesChannel;
+        private Dictionary<EndPoint, Tuple<List<byte>, List<byte>>> _buffer = new Dictionary<EndPoint, Tuple<List<byte>, List<byte>>>(); // Buffer - DataSize
         private State _state;
         private int _stateIndex;
-        private List<byte> _dataSize;
         private delegate void _onPacketReceivedDelegate(PacketReceivedEventArgs args);
+        private AckCommand _ack;
 
         private ConcurrentDictionary<System.Net.Sockets.Socket, Action<PacketReceivedEventArgs>> _callbackActionsDictionary;
 
@@ -39,7 +40,7 @@ namespace Mabna.Communication.Tcp.PacketProcessor
 
             _callbackActionsDictionary = new ConcurrentDictionary<System.Net.Sockets.Socket, Action<PacketReceivedEventArgs>>();
 
-            _endPointBytesChannel = Channel.CreateBounded<Tuple<System.Net.Sockets.Socket, byte[]>>(new BoundedChannelOptions(100)
+            _endPointBytesChannel = Channel.CreateBounded<Tuple<System.Net.Sockets.Socket, List<byte>>>(new BoundedChannelOptions(10000)
             {
                 FullMode = BoundedChannelFullMode.Wait
             });
@@ -47,6 +48,7 @@ namespace Mabna.Communication.Tcp.PacketProcessor
 
         public void Initialize(PacketConfig packetConfig)
         {
+            _ack = new AckCommand(packetConfig);
             _packetConfig = packetConfig;
         }
 
@@ -57,30 +59,30 @@ namespace Mabna.Communication.Tcp.PacketProcessor
 
             _state = State.Header;
             _stateIndex = 1;
-            _dataSize = new List<byte>();
 
             do
             {
                 var endPointBytes = await _endPointBytesChannel.Reader.ReadAsync(cancellationToken);
+
                 await ProcessAsync(endPointBytes.Item1, endPointBytes.Item2, cancellationToken);
             }
             while (true);
         }
 
-        public async ValueTask AddDataAsync(System.Net.Sockets.Socket socket, byte[] bytes, Action<PacketReceivedEventArgs> callbackAction, CancellationToken cancellationToken)
+        public async ValueTask AddDataAsync(System.Net.Sockets.Socket socket, byte[] bytes,int bytesReceived, Action<PacketReceivedEventArgs> callbackAction, CancellationToken cancellationToken)
         {
             if (!_callbackActionsDictionary.TryGetValue(socket, out var action))
                 _callbackActionsDictionary.TryAdd(socket, callbackAction);
 
-            await _endPointBytesChannel.Writer.WriteAsync(new Tuple<System.Net.Sockets.Socket, byte[]>(socket, bytes), cancellationToken);
+            await _endPointBytesChannel.Writer.WriteAsync(new Tuple<System.Net.Sockets.Socket, List<byte>>(socket, bytes.Take(bytesReceived).ToList()), cancellationToken);
         }
 
-        private async ValueTask ProcessAsync(System.Net.Sockets.Socket socket, byte[] bytes, CancellationToken cancellationToken)
+        private async ValueTask ProcessAsync(System.Net.Sockets.Socket socket, List<byte> bytes, CancellationToken cancellationToken)
         {
             var endPoint = socket.RemoteEndPoint;
 
             if (!_buffer.ContainsKey(endPoint))
-                _buffer.Add(endPoint, new List<byte>());
+                _buffer.Add(endPoint, new Tuple<List<byte>, List<byte>>(new List<byte>(), new List<byte>()));
 
             var isTailSeen = false;
             foreach (var b in bytes)
@@ -88,7 +90,7 @@ namespace Mabna.Communication.Tcp.PacketProcessor
                 if (isTailSeen)
                     break;
 
-                _buffer[endPoint].Add(b);
+                _buffer[endPoint].Item1.Add(b);
 
                 switch (_state)
                 {
@@ -115,16 +117,19 @@ namespace Mabna.Communication.Tcp.PacketProcessor
                             _state++;
                         }
 
-                        _dataSize.Add(b);
+                        _buffer[endPoint].Item2.Add(b);
 
                         break;
                     case State.Command:
                         _stateIndex = 1;
                         _state++;
 
+                        if (BitConverter.ToInt32(_buffer[endPoint].Item2.ToArray()) == 0) // We're skipping data section if we've not received any data (DATA_SIZE == 0)
+                            _state++; 
+
                         break;
                     case State.Data:
-                        if (_stateIndex < BitConverter.ToInt32(_dataSize.ToArray()))
+                        if (_stateIndex < BitConverter.ToInt32(_buffer[endPoint].Item2.ToArray()))
                         {
                             _stateIndex++;
                         }
@@ -150,10 +155,8 @@ namespace Mabna.Communication.Tcp.PacketProcessor
                             _stateIndex = 1;
                             _state = 0;
 
-                            if (_packetParser.TryParse(_packetConfig, _buffer[endPoint].ToArray(), out var packetModel))
+                            if (_packetParser.TryParse(_packetConfig, _buffer[endPoint].Item1.ToArray(), out var packetModel))
                             {
-                                _buffer.Clear();
-
                                 if (_callbackActionsDictionary.TryGetValue(socket, out var action))
                                 {
                                     action.Invoke(new PacketReceivedEventArgs()
@@ -161,8 +164,18 @@ namespace Mabna.Communication.Tcp.PacketProcessor
                                         Packet = packetModel,
                                         Socket = socket
                                     });
+
+                                    System.Net.Sockets.SocketAsyncEventArgs arg = new System.Net.Sockets.SocketAsyncEventArgs();
+                                    arg.SetBuffer(_ack.GetBytes().ToArray());
+                                    socket.SendAsync(arg);
                                 }
                             }
+                            else
+                            {
+                                // ignored
+                            }
+
+                            _buffer[endPoint] = new Tuple<List<byte>, List<byte>>(new List<byte>(), new List<byte>());
 
                             isTailSeen = true;
                         }

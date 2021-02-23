@@ -11,13 +11,11 @@ namespace Mabna.Communication.Tcp.TcpServer
     public class TcpServer : ITcpServer
     {
         private readonly SocketConfig _socketConfig;
-        private readonly PacketConfig _packetConfig;
         private readonly IPacketProcessor _packetProcessor;
-        private readonly IPacketParser _packetParser;
-        private System.Net.Sockets.Socket _listenerSocket;
+        private Socket _listenerSocket;
         private bool _isListening = true;
 
-        private ManualResetEvent _allDone = new ManualResetEvent(false);
+        private static ManualResetEvent _allDone = new ManualResetEvent(false);
 
         public event EventHandler<DataReceivedEventArgs> DataReceived;
         public event EventHandler<PacketReceivedEventArgs> PacketReceived;
@@ -34,21 +32,19 @@ namespace Mabna.Communication.Tcp.TcpServer
             handler?.Invoke(this, e);
         }
 
-        public TcpServer(SocketConfig socketConfig, PacketConfig packetConfig, IPacketProcessor packetProcessor, IPacketParser packetParser)
+        public TcpServer(SocketConfig socketConfig, IPacketProcessor packetProcessor)
         {
-            _packetConfig = packetConfig;
             _packetProcessor = packetProcessor;
-            _packetParser = packetParser;
             _socketConfig = socketConfig;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            await Task.Run(() =>
+            var thread = new Thread(() =>
             {
                 var localEndPoint = new IPEndPoint(_socketConfig.IPAddress, _socketConfig.Port);
 
-                _listenerSocket = new System.Net.Sockets.Socket(_socketConfig.IPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                _listenerSocket = new Socket(_socketConfig.IPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
                 try
                 {
@@ -59,14 +55,12 @@ namespace Mabna.Communication.Tcp.TcpServer
                     {
                         _allDone.Reset();
 
-                        _listenerSocket.BeginAccept(
-                            new AsyncCallback(AcceptCallback),
-                            _listenerSocket);
+                        _listenerSocket.BeginAccept(new AsyncCallback(AcceptCallback), _listenerSocket);
 
                         _allDone.WaitOne();
                     }
                 }
-                catch (Exception ex)
+                catch
                 {
                     // ignored
                 }
@@ -75,35 +69,63 @@ namespace Mabna.Communication.Tcp.TcpServer
                 {
                     _listenerSocket.Close();
                 }
+                catch
+                {
+                    // ignored
+                }
                 finally
                 {
                     _listenerSocket = null;
                 }
-
-                return Task.CompletedTask;
             });
+
+            thread.Start();
+
+            do
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        thread.Abort();
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+
+                    break;
+                }
+
+                try
+                {
+                    await Task.Delay(3_600_000, cancellationToken);
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+            while (true);
         }
 
         private void AcceptCallback(IAsyncResult ar)
         {
             _allDone.Set();
-
-            if (!_isListening)
-                return;
-
-            var listener = (System.Net.Sockets.Socket)ar.AsyncState;
-            var handler = listener?.EndAccept(ar);
-
-            var endPoint = handler.RemoteEndPoint as IPEndPoint;
-
-            var state = new StateObject(handler);
             try
             {
+                var listener = (Socket)ar.AsyncState;
+                var handler = listener?.EndAccept(ar);
+
+                var state = new StateObject(handler);
+
+                //return;
+
                 handler?.BeginReceive(state.Buffer, 0, state.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
             }
             catch
             {
-                return;
+                // ignored
             }
         }
 
@@ -136,10 +158,16 @@ namespace Mabna.Communication.Tcp.TcpServer
                 Bytes = state.Buffer
             });
 
-            state.Cache.AddRange(state.Buffer);
-            _packetProcessor.AddDataAsync(handler, state.Buffer, OnPacketReceived, CancellationToken.None);
-            
-            handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
+            _packetProcessor.AddDataAsync(handler, state.Buffer, bytesRead, OnPacketReceived, CancellationToken.None);
+
+            try
+            {
+                handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
         public void Shutdown()

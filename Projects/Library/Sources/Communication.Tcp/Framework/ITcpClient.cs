@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Mabna.Communication.Tcp.TcpClient;
 using Mabna.Communication.Tcp.TcpClient.Event;
 
 namespace Mabna.Communication.Tcp.Framework
@@ -9,9 +10,13 @@ namespace Mabna.Communication.Tcp.Framework
     {
         event EventHandler<PacketSentEventArgs> PacketSent;
 
-        Task<bool> SendAsync(PacketModel packet, CancellationToken cancellationToken);
+        event EventHandler<PacketFailedToSendEventArg> PacketFailedToSend;
 
-        Task<bool> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken);
+        event EventHandler<DataSentEventArg> DataSent;
+
+        Task<ClientSendAsyncResult> SendAsync(PacketModel packet, CancellationToken cancellationToken);
+
+        Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken);
 
         void Close();
     }

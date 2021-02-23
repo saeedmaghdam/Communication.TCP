@@ -13,7 +13,7 @@ namespace Mabna.Communication.Tcp.DependencyInjection.Microsoft
             services.AddTransient<ITcpServerBuilder, TcpServerBuilder>();
             services.AddTransient<ITcpServer, TcpServer.TcpServer>();
             services.AddTransient<ITcpClientBuilder, TcpClientBuilder>();
-            services.AddSingleton<ITcpClient, TcpClient.TcpClient>();
+            services.AddTransient<ITcpClient, TcpClient.TcpClient>();
             services.AddTransient<IPacketParser, PacketProcessor.PacketParser>();
             services.AddTransient<IPacketProcessor, PacketProcessor.PacketProcessor>();
             services.Add(new ServiceDescriptor(typeof(PacketConfig), new PacketConfig(null, null)));
