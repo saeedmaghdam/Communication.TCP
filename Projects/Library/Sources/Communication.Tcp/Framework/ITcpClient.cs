@@ -16,6 +16,8 @@ namespace Mabna.Communication.Tcp.Framework
 
         Task<ClientSendAsyncResult> SendAsync(PacketModel packet, CancellationToken cancellationToken);
 
+        Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte commandOptions, byte[] data, CancellationToken cancellationToken);
+
         Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken);
 
         void Close();

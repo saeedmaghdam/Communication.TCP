@@ -9,17 +9,19 @@ namespace Mabna.Communication.Tcp.PacketProcessor
     {
         public bool TryParse(PacketConfig packetConfig, byte[] bytes, out PacketModel packetModel)
         {
-            packetModel = new PacketModel(null, null, null, null, null, null);
+            packetModel = new PacketModel(null, null, null, null, null, null, null);
 
             int headerStartIndex,
                 dataSizeStartIndex,
                 commandStartIndex,
+                commandOptionsStartIndex,
                 dataStartIndex,
                 crcStartIndex,
                 tailStartIndex,
                 headerTotalBytes,
                 dataSizeTotalBytes,
                 commandTotalBytes,
+                commandOptionsTotalBytes,
                 dataTotalBytes,
                 crcTotalBytes,
                 tailTotalBytes;
@@ -50,6 +52,12 @@ namespace Mabna.Communication.Tcp.PacketProcessor
             commandTotalBytes = size;
 
             start += size;
+            size = packetConfig.CommandOptionsBytesSize;
+            var commandOptions = bytes.ReadBytes(start, size);
+            commandOptionsStartIndex = start;
+            commandOptionsTotalBytes = size;
+
+            start += size;
             size = BitConverter.ToInt32(dataSize, 0);
             var data = bytes.ReadBytes(start, size);
             dataStartIndex = start;
@@ -58,7 +66,7 @@ namespace Mabna.Communication.Tcp.PacketProcessor
             start += size;
             size = 1;
             var crc = bytes.ReadBytes(start, size);
-            var calculatedCrc = Util.CalculateCRC(dataSize, command, data);
+            var calculatedCrc = Util.CalculateCRC(dataSize, command, commandOptions, data);
             if (!crc.SequenceEqual(calculatedCrc))
                 return false;
             crcStartIndex = start;
@@ -72,24 +80,26 @@ namespace Mabna.Communication.Tcp.PacketProcessor
             tailStartIndex = start;
             tailTotalBytes = size;
 
-            packetModel = new PacketModel(bytes.ReadBytes(headerStartIndex, headerTotalBytes), bytes.ReadBytes(dataSizeStartIndex, dataSizeTotalBytes), bytes.ReadBytes(commandStartIndex, commandTotalBytes), bytes.ReadBytes(dataStartIndex, dataTotalBytes), bytes.ReadBytes(crcStartIndex, crcTotalBytes), bytes.ReadBytes(tailStartIndex, tailTotalBytes));
+            packetModel = new PacketModel(bytes.ReadBytes(headerStartIndex, headerTotalBytes), bytes.ReadBytes(dataSizeStartIndex, dataSizeTotalBytes), bytes.ReadBytes(commandStartIndex, commandTotalBytes), bytes.ReadBytes(commandOptionsStartIndex, commandOptionsTotalBytes), bytes.ReadBytes(dataStartIndex, dataTotalBytes), bytes.ReadBytes(crcStartIndex, crcTotalBytes), bytes.ReadBytes(tailStartIndex, tailTotalBytes));
 
             return true;
         }
 
         public bool TryParse(PacketConfig packetConfig, byte[] bytes, int bytesReceived, out PacketModel packetModel)
         {
-            packetModel = new PacketModel(null, null, null, null, null, null);
+            packetModel = new PacketModel(null, null, null, null, null, null, null);
 
             int headerStartIndex,
                 dataSizeStartIndex,
                 commandStartIndex,
+                commandOptionsStartIndex,
                 dataStartIndex,
                 crcStartIndex,
                 tailStartIndex,
                 headerTotalBytes,
                 dataSizeTotalBytes,
                 commandTotalBytes,
+                commandOptionsTotalBytes,
                 dataTotalBytes,
                 crcTotalBytes,
                 tailTotalBytes;
@@ -128,6 +138,12 @@ namespace Mabna.Communication.Tcp.PacketProcessor
             commandTotalBytes = size;
 
             start += size;
+            size = packetConfig.CommandOptionsBytesSize;
+            var commandOptions = bytes.ReadBytes(start, size);
+            commandOptionsStartIndex = start;
+            commandOptionsTotalBytes = size;
+
+            start += size;
             size = BitConverter.ToInt16(dataSize, 0);
             var data = bytes.ReadBytes(start, size);
             dataStartIndex = start;
@@ -136,13 +152,13 @@ namespace Mabna.Communication.Tcp.PacketProcessor
             start += size;
             size = 1;
             var crc = bytes.ReadBytes(start, size);
-            var calculatedCrc = Util.CalculateCRC(dataSize, command, data);
+            var calculatedCrc = Util.CalculateCRC(dataSize, command, commandOptions, data);
             if (!crc.SequenceEqual(calculatedCrc))
                 return false;
             crcStartIndex = start;
             crcTotalBytes = size;
             
-            packetModel = new PacketModel(bytes.ReadBytes(headerStartIndex, headerTotalBytes), bytes.ReadBytes(dataSizeStartIndex, dataSizeTotalBytes), bytes.ReadBytes(commandStartIndex, commandTotalBytes), bytes.ReadBytes(dataStartIndex, dataTotalBytes), bytes.ReadBytes(crcStartIndex, crcTotalBytes), bytes.ReadBytes(tailStartIndex, tailTotalBytes));
+            packetModel = new PacketModel(bytes.ReadBytes(headerStartIndex, headerTotalBytes), bytes.ReadBytes(dataSizeStartIndex, dataSizeTotalBytes), bytes.ReadBytes(commandStartIndex, commandTotalBytes), bytes.ReadBytes(commandOptionsStartIndex, commandOptionsTotalBytes), bytes.ReadBytes(dataStartIndex, dataTotalBytes), bytes.ReadBytes(crcStartIndex, crcTotalBytes), bytes.ReadBytes(tailStartIndex, tailTotalBytes));
 
             return true;
         }

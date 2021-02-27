@@ -139,14 +139,20 @@ namespace Mabna.Communication.Tcp.TcpClient
             return RaisePacketFailedToSendEvent(state, packet);
         }
 
-        public async Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken)
+        public async Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte commandOptions, byte[] data, CancellationToken cancellationToken)
         {
             var dataSize = BitConverter.GetBytes(data.Length);
             var commandArray = new byte[1] { command };
-            var crc = Util.CalculateCRC(dataSize, commandArray, data);
-            var packetModel = new PacketModel(_packetConfig.Header, dataSize, commandArray, data, crc, _packetConfig.Tail);
+            var commandOptionsArray = new byte[1] { commandOptions };
+            var crc = Util.CalculateCRC(dataSize, commandArray, commandOptionsArray, data);
+            var packetModel = new PacketModel(_packetConfig.Header, dataSize, commandArray, commandOptionsArray, data, crc, _packetConfig.Tail);
 
             return await SendAsync(packetModel, cancellationToken);
+        }
+
+        public async Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken)
+        {
+            return await SendCommandAsync(command, 0x00, data, cancellationToken);
         }
 
         public void Close()

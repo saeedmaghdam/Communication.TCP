@@ -18,9 +18,10 @@ namespace Mabna.Communication.Tcp.PacketProcessor
             Header = 0,
             DataSize = 1,
             Command = 2,
-            Data = 3,
-            Crc = 4,
-            Tail = 5
+            CommandOptions = 3,
+            Data = 4,
+            Crc = 5,
+            Tail = 6
         }
 
         private readonly IPacketParser _packetParser;
@@ -126,6 +127,11 @@ namespace Mabna.Communication.Tcp.PacketProcessor
 
                         if (BitConverter.ToInt32(_buffer[endPoint].Item2.ToArray()) == 0) // We're skipping data section if we've not received any data (DATA_SIZE == 0)
                             _state++;
+
+                        break;
+                    case State.CommandOptions:
+                        _stateIndex = 1;
+                        _state++;
 
                         break;
                     case State.Data:

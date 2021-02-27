@@ -17,6 +17,11 @@
             get;
         }
 
+        public int CommandOptionsBytesSize
+        {
+            get;
+        }
+
         public int DataMaxSize
         {
             get;
@@ -38,6 +43,8 @@
             };
 
             CommandBytesSize = 1;
+
+            CommandOptionsBytesSize = 1;
 
             DataMaxSize = 4;
         }

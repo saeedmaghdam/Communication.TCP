@@ -20,6 +20,11 @@ namespace Mabna.Communication.Tcp.Framework
             get;
         }
 
+        public IEnumerable<byte> CommandOptions // DEFAULT VALUE IS 0x00
+        {
+            get;
+        }
+
         public IEnumerable<byte> Data
         {
             get;
@@ -34,12 +39,13 @@ namespace Mabna.Communication.Tcp.Framework
         {
             get;
         }
-        
-        public PacketModel(IEnumerable<byte> header, IEnumerable<byte> dataSize, IEnumerable<byte> command, IEnumerable<byte> data, IEnumerable<byte> crc, IEnumerable<byte> tail)
+
+        public PacketModel(IEnumerable<byte> header, IEnumerable<byte> dataSize, IEnumerable<byte> command, IEnumerable<byte> commandOptions, IEnumerable<byte> data, IEnumerable<byte> crc, IEnumerable<byte> tail)
         {
             Header = header;
             DataSize = dataSize;
             Command = command;
+            CommandOptions = commandOptions;
             Data = data;
             Crc = crc;
             Tail = tail;
@@ -47,7 +53,7 @@ namespace Mabna.Communication.Tcp.Framework
 
         public IEnumerable<byte> GetBytes()
         {
-            return Header.Concat(DataSize).Concat(Command).Concat(Data).Concat(Crc).Concat(Tail);
+            return Header.Concat(DataSize).Concat(Command).Concat(CommandOptions).Concat(Data).Concat(Crc).Concat(Tail);
         }
     }
 }
