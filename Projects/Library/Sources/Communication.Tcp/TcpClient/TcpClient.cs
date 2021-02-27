@@ -16,6 +16,7 @@ namespace Mabna.Communication.Tcp.TcpClient
         private readonly PacketConfig _packetConfig;
         private readonly Socket _socket;
         private readonly IPacketParser _packetParser;
+        private readonly ICommandOptionsBuilder _commandOptionsBuilder;
 
         private readonly AckCommand _ack;
 
@@ -41,13 +42,14 @@ namespace Mabna.Communication.Tcp.TcpClient
             handler?.Invoke(this, e);
         }
 
-        public TcpClient(SocketConfig socketConfig, PacketConfig packetConfig, IPacketParser packetParser)
+        public TcpClient(SocketConfig socketConfig, PacketConfig packetConfig, IPacketParser packetParser, ICommandOptionsBuilder commandOptionsBuilder)
         {
             _ack = new AckCommand(packetConfig);
 
             _socketConfig = socketConfig;
             _packetConfig = packetConfig;
             _packetParser = packetParser;
+            _commandOptionsBuilder = commandOptionsBuilder;
             _socket = new Socket(_socketConfig.IPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             _socket.ReceiveTimeout = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
             _socket.Bind(new IPEndPoint(_socketConfig.IPAddress, 0));
@@ -152,7 +154,9 @@ namespace Mabna.Communication.Tcp.TcpClient
 
         public async Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken)
         {
-            return await SendCommandAsync(command, 0x00, data, cancellationToken);
+            var commandOptions = _commandOptionsBuilder.AckRequired(true).Build();
+
+            return await SendCommandAsync(command, commandOptions, data, cancellationToken);
         }
 
         public void Close()

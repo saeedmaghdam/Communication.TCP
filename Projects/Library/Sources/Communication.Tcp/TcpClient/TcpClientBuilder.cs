@@ -7,6 +7,7 @@ namespace Mabna.Communication.Tcp.TcpClient
     public class TcpClientBuilder : ITcpClientBuilder
     {
         private readonly IPacketParser _packetParser;
+        private readonly ICommandOptionsBuilder _commandOptionsBuilder;
 
         private byte[] _header;
 
@@ -16,9 +17,10 @@ namespace Mabna.Communication.Tcp.TcpClient
 
         private int _port;
 
-        public TcpClientBuilder(IPacketParser packetParser)
+        public TcpClientBuilder(IPacketParser packetParser, ICommandOptionsBuilder commandOptionsBuilder)
         {
             _packetParser = packetParser;
+            _commandOptionsBuilder = commandOptionsBuilder;
         }
 
         public ITcpClientBuilder Header(byte[] bytes)
@@ -66,12 +68,12 @@ namespace Mabna.Communication.Tcp.TcpClient
             var packetConfig = new PacketConfig(_header, _tail);
             var socketConfig = new SocketConfig(_ipAddress, _port);
 
-            return new TcpClient(socketConfig, packetConfig, _packetParser);
+            return new TcpClient(socketConfig, packetConfig, _packetParser, _commandOptionsBuilder);
         }
 
         public ITcpClientBuilder Create()
         {
-            return new TcpClientBuilder(_packetParser);
+            return new TcpClientBuilder(_packetParser, _commandOptionsBuilder);
         }
     }
 }
