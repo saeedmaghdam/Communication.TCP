@@ -72,7 +72,7 @@ namespace Mabna.Communication.Tcp.TcpServer
             _packetProcessor.Initialize(packetConfig);
             _packetProcessor.StartAsync(CancellationToken.None);
 
-            return new TcpServer(socketConfig, _packetProcessor);
+            return new TcpServer(packetConfig, socketConfig, _packetProcessor);
         }
 
         public ITcpServerBuilder Create()

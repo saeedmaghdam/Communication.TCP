@@ -172,9 +172,13 @@ namespace Mabna.Communication.Tcp.PacketProcessor
                                     });
 
                                     // Send ack to client
-                                    System.Net.Sockets.SocketAsyncEventArgs arg = new System.Net.Sockets.SocketAsyncEventArgs();
-                                    arg.SetBuffer(_ack.GetBytes().ToArray());
-                                    socket.SendAsync(arg);
+                                    CommandOptions.TryParse(packetModel.CommandOptions.Single(), out var commandOptions);
+                                    if (commandOptions.AckRequired && !commandOptions.ResponseRequired)
+                                    {
+                                        System.Net.Sockets.SocketAsyncEventArgs arg = new System.Net.Sockets.SocketAsyncEventArgs();
+                                        arg.SetBuffer(_ack.GetBytes().ToArray());
+                                        socket.SendAsync(arg);
+                                    }
                                 }
                                 else
                                 {

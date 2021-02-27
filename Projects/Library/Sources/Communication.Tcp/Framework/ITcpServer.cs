@@ -13,5 +13,7 @@ namespace Mabna.Communication.Tcp.Framework
         Task StartAsync(CancellationToken cancellationToken);
 
         void Shutdown();
+
+        PacketModel CreateCommand(byte command, byte[] data);
     }
 }

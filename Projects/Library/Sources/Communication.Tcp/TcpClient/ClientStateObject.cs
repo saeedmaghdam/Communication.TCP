@@ -67,14 +67,26 @@ namespace Mabna.Communication.Tcp.TcpClient
             get;
         }
 
+        public byte[] Response
+        {
+            get;
+        }
+
+        public ClientSendAsyncResult(bool isSent, byte[] response)
+        {
+            IsSent = isSent;
+            Response = response;
+        }
+
         public ClientSendAsyncResult(bool isSent)
         {
             IsSent = isSent;
+            Response = new byte[] { };
         }
 
         public static ClientSendAsyncResult CreateDefaultInstance()
         {
-            return new ClientSendAsyncResult(false);
+            return new ClientSendAsyncResult(false, new byte[] { });
         }
     }
 }

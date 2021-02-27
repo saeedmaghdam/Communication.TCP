@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Mabna.Communication.Tcp.Common;
 using Mabna.Communication.Tcp.Framework;
 using Mabna.Communication.Tcp.TcpServer.Event;
 
@@ -10,6 +11,7 @@ namespace Mabna.Communication.Tcp.TcpServer
 {
     public class TcpServer : ITcpServer
     {
+        private readonly PacketConfig _packetConfig;
         private readonly SocketConfig _socketConfig;
         private readonly IPacketProcessor _packetProcessor;
         private Socket _listenerSocket;
@@ -32,10 +34,11 @@ namespace Mabna.Communication.Tcp.TcpServer
             handler?.Invoke(this, e);
         }
 
-        public TcpServer(SocketConfig socketConfig, IPacketProcessor packetProcessor)
+        public TcpServer(PacketConfig packetConfig, SocketConfig socketConfig, IPacketProcessor packetProcessor)
         {
             _packetProcessor = packetProcessor;
             _socketConfig = socketConfig;
+            _packetConfig = packetConfig;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -174,6 +177,22 @@ namespace Mabna.Communication.Tcp.TcpServer
         {
             _isListening = false;
             _allDone.Set();
+        }
+
+        public PacketModel CreateCommand(byte command, byte commandOptions, byte[] data)
+        {
+            var dataSize = BitConverter.GetBytes(data.Length);
+            var commandArray = new byte[] { command };
+            var commandOptionsArray = new byte[] { commandOptions };
+            var crc = Util.CalculateCRC(dataSize, commandArray, commandOptionsArray, data);
+            var packetModel = new PacketModel(_packetConfig.Header, dataSize, commandArray, commandOptionsArray, data, crc, _packetConfig.Tail);
+
+            return packetModel;
+        }
+
+        public PacketModel CreateCommand(byte command, byte[] data)
+        {
+            return CreateCommand(command, 0x00, data);
         }
     }
 }

@@ -12,9 +12,9 @@
         // Bit 6    =   *RESERVED
         // Bit 7    =   *RESERVED
 
-        ICommandOptionsBuilder AckRequired(bool value);
+        ICommandOptionsBuilder AckRequired();
 
-        ICommandOptionsBuilder ResponseRequired(bool value);
+        ICommandOptionsBuilder ResponseRequired();
 
         byte Build();
     }

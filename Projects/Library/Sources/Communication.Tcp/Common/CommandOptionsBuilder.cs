@@ -9,16 +9,16 @@ namespace Mabna.Communication.Tcp.Common
 
         public CommandOptionsBuilder() { }
 
-        public ICommandOptionsBuilder AckRequired(bool value)
+        public ICommandOptionsBuilder AckRequired()
         {
-            _ackRequired = value;
+            _ackRequired = true;
 
             return this;
         }
 
-        public ICommandOptionsBuilder ResponseRequired(bool value)
+        public ICommandOptionsBuilder ResponseRequired()
         {
-            _responseRequired = value;
+            _responseRequired = true;
 
             return this;
         }

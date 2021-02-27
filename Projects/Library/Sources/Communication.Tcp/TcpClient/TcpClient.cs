@@ -100,26 +100,32 @@ namespace Mabna.Communication.Tcp.TcpClient
                         Socket = _socket
                     });
 
-                    var receiveArgs = new SocketAsyncEventArgs();
-                    receiveArgs.SetBuffer(state.ReceiveBuffer);
-                    await _socket.ReceiveAsync(new ClientSocketAwaitable(receiveArgs));
-
-                    if (receiveArgs.BytesTransferred == 0)
-                        return RaisePacketFailedToSendEvent(state, packet);
-
-                    if (_packetParser.TryParse(_packetConfig, state.ReceiveBuffer, _ack.GetBytes().ToArray().Length, out var model))
+                    if (CommandOptions.TryParse(packet.CommandOptions.Single(), out var commandOptions))
                     {
-                        if (_ack.GetBytes().SequenceEqual(model.GetBytes()))
-                        {
-                            state.SendAsyncResult = new ClientSendAsyncResult(true);
-
-                            OnPacketSent(new PacketSentEventArgs()
-                            {
-                                Socket = state.Socket,
-                                Packet = state.Packet
-                            });
-
+                        if (!commandOptions.AckRequired && !commandOptions.ResponseRequired)
                             return new ClientSendAsyncResult(true);
+
+                        var receiveArgs = new SocketAsyncEventArgs();
+                        receiveArgs.SetBuffer(state.ReceiveBuffer);
+                        await _socket.ReceiveAsync(new ClientSocketAwaitable(receiveArgs));
+
+                        if (receiveArgs.BytesTransferred == 0)
+                            return RaisePacketFailedToSendEvent(state, packet);
+
+                        if (_packetParser.TryParse(_packetConfig, state.ReceiveBuffer, receiveArgs.BytesTransferred, out var model))
+                        {
+                            if ((commandOptions.ResponseRequired) || (commandOptions.AckRequired && _ack.GetBytes().SequenceEqual(model.GetBytes()))) // If client has requested response or ack
+                            {
+                                state.SendAsyncResult = new ClientSendAsyncResult(true, model.Data.ToArray());
+
+                                OnPacketSent(new PacketSentEventArgs()
+                                {
+                                    Socket = state.Socket,
+                                    Packet = state.Packet
+                                });
+
+                                return new ClientSendAsyncResult(true, model.Data.ToArray());
+                            }
                         }
                     }
 
@@ -144,8 +150,8 @@ namespace Mabna.Communication.Tcp.TcpClient
         public async Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte commandOptions, byte[] data, CancellationToken cancellationToken)
         {
             var dataSize = BitConverter.GetBytes(data.Length);
-            var commandArray = new byte[1] { command };
-            var commandOptionsArray = new byte[1] { commandOptions };
+            var commandArray = new byte[] { command };
+            var commandOptionsArray = new byte[] { commandOptions };
             var crc = Util.CalculateCRC(dataSize, commandArray, commandOptionsArray, data);
             var packetModel = new PacketModel(_packetConfig.Header, dataSize, commandArray, commandOptionsArray, data, crc, _packetConfig.Tail);
 
@@ -154,7 +160,7 @@ namespace Mabna.Communication.Tcp.TcpClient
 
         public async Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken)
         {
-            var commandOptions = _commandOptionsBuilder.AckRequired(true).Build();
+            var commandOptions = _commandOptionsBuilder.AckRequired().Build();
 
             return await SendCommandAsync(command, commandOptions, data, cancellationToken);
         }
