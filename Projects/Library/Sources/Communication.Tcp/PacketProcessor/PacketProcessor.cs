@@ -69,7 +69,7 @@ namespace Mabna.Communication.Tcp.PacketProcessor
             while (true);
         }
 
-        public async ValueTask AddDataAsync(System.Net.Sockets.Socket socket, byte[] bytes,int bytesReceived, Action<PacketReceivedEventArgs> callbackAction, CancellationToken cancellationToken)
+        public async ValueTask AddDataAsync(System.Net.Sockets.Socket socket, byte[] bytes, int bytesReceived, Action<PacketReceivedEventArgs> callbackAction, CancellationToken cancellationToken)
         {
             if (!_callbackActionsDictionary.TryGetValue(socket, out var action))
                 _callbackActionsDictionary.TryAdd(socket, callbackAction);
@@ -125,7 +125,7 @@ namespace Mabna.Communication.Tcp.PacketProcessor
                         _state++;
 
                         if (BitConverter.ToInt32(_buffer[endPoint].Item2.ToArray()) == 0) // We're skipping data section if we've not received any data (DATA_SIZE == 0)
-                            _state++; 
+                            _state++;
 
                         break;
                     case State.Data:
@@ -155,9 +155,9 @@ namespace Mabna.Communication.Tcp.PacketProcessor
                             _stateIndex = 1;
                             _state = 0;
 
-                            if (_packetParser.TryParse(_packetConfig, _buffer[endPoint].Item1.ToArray(), out var packetModel))
+                            if (_callbackActionsDictionary.TryGetValue(socket, out var action))
                             {
-                                if (_callbackActionsDictionary.TryGetValue(socket, out var action))
+                                if (_packetParser.TryParse(_packetConfig, _buffer[endPoint].Item1.ToArray(), out var packetModel))
                                 {
                                     action.Invoke(new PacketReceivedEventArgs()
                                     {
@@ -165,14 +165,18 @@ namespace Mabna.Communication.Tcp.PacketProcessor
                                         Socket = socket
                                     });
 
+                                    // Send ack to client
                                     System.Net.Sockets.SocketAsyncEventArgs arg = new System.Net.Sockets.SocketAsyncEventArgs();
                                     arg.SetBuffer(_ack.GetBytes().ToArray());
                                     socket.SendAsync(arg);
                                 }
-                            }
-                            else
-                            {
-                                // ignored
+                                else
+                                {
+                                    // Send a zero-byte message to unblock the client.
+                                    System.Net.Sockets.SocketAsyncEventArgs arg = new System.Net.Sockets.SocketAsyncEventArgs();
+                                    arg.SetBuffer(new byte[] { });
+                                    socket.SendAsync(arg);
+                                }
                             }
 
                             _buffer[endPoint] = new Tuple<List<byte>, List<byte>>(new List<byte>(), new List<byte>());

@@ -120,6 +120,8 @@ namespace Mabna.Communication.Tcp.TcpClient
                             return new ClientSendAsyncResult(true);
                         }
                     }
+
+                    return RaisePacketFailedToSendEvent(state, packet);
                 }
                 catch
                 {
