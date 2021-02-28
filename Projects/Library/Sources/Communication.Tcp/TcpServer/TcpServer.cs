@@ -48,6 +48,8 @@ namespace Mabna.Communication.Tcp.TcpServer
                 var localEndPoint = new IPEndPoint(_socketConfig.IPAddress, _socketConfig.Port);
 
                 _listenerSocket = new Socket(_socketConfig.IPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                _listenerSocket.SendTimeout = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
+                _listenerSocket.ReceiveTimeout = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
 
                 try
                 {
