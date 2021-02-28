@@ -167,7 +167,7 @@ namespace Mabna.Communication.Tcp.TcpClient
 
         public async Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken)
         {
-            var commandOptions = _commandOptionsBuilder.AckRequired().Build();
+            var commandOptions = _commandOptionsBuilder.AckRequired(true).Build();
 
             return await SendCommandAsync(command, commandOptions, data, cancellationToken);
         }
