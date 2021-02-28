@@ -14,7 +14,7 @@ namespace Mabna.Communication.Tcp.TcpClient
     {
         private readonly SocketConfig _socketConfig;
         private readonly PacketConfig _packetConfig;
-        private readonly Socket _socket;
+        private Socket _socket;
         private readonly IPacketParser _packetParser;
         private readonly ICommandOptionsBuilder _commandOptionsBuilder;
 
@@ -50,9 +50,8 @@ namespace Mabna.Communication.Tcp.TcpClient
             _packetConfig = packetConfig;
             _packetParser = packetParser;
             _commandOptionsBuilder = commandOptionsBuilder;
-            _socket = new Socket(_socketConfig.IPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            _socket.ReceiveTimeout = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
-            _socket.Bind(new IPEndPoint(_socketConfig.IPAddress, 0));
+
+            InitializeSocket();
         }
 
         public async Task<ClientSendAsyncResult> SendAsync(PacketModel packet, CancellationToken cancellationToken)
@@ -70,12 +69,20 @@ namespace Mabna.Communication.Tcp.TcpClient
                     {
                         await _socket.ConnectAsync(_socketConfig.IPAddress, _socketConfig.Port);
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        if ((ex as SocketException)?.ErrorCode == 10056)
+                        {
+                            _socket.Disconnect(true);
+                            _socket.Close();
+
+                            InitializeSocket();
+                        }
+
                         await Task.Delay(10, cancellationToken);
                     }
                 }
-                while (tryRemaining-- == 0);
+                while (!_socket.Connected && tryRemaining-- != 0);
 
                 if (!_socket.Connected)
                     return RaisePacketFailedToSendEvent(state, packet);
@@ -131,12 +138,12 @@ namespace Mabna.Communication.Tcp.TcpClient
 
                     return RaisePacketFailedToSendEvent(state, packet);
                 }
-                catch
+                catch (Exception ex)
                 {
                     await Task.Delay(10, cancellationToken);
                 }
             }
-            while (tryRemaining-- == 0);
+            while (tryRemaining-- != 0);
 
             OnPacketFailedToSend(new PacketFailedToSendEventArg()
             {
@@ -169,7 +176,7 @@ namespace Mabna.Communication.Tcp.TcpClient
         {
             try
             {
-                _socket.Shutdown(SocketShutdown.Both);
+                _socket.Disconnect(true);
                 _socket.Close();
             }
             catch
@@ -187,6 +194,14 @@ namespace Mabna.Communication.Tcp.TcpClient
             });
 
             return state.SendAsyncResult;
+        }
+
+        private void InitializeSocket()
+        {
+            _socket = new Socket(_socketConfig.IPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            _socket.ReceiveTimeout = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
+            _socket.Bind(new IPEndPoint(_socketConfig.IPAddress, 0));
         }
     }
 }

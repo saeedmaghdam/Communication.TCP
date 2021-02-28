@@ -63,7 +63,7 @@ namespace Mabna.Communication.Tcp.TcpServer
                         _allDone.WaitOne();
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
                     // ignored
                 }
@@ -72,7 +72,7 @@ namespace Mabna.Communication.Tcp.TcpServer
                 {
                     _listenerSocket.Close();
                 }
-                catch
+                catch (Exception ex)
                 {
                     // ignored
                 }
@@ -92,7 +92,7 @@ namespace Mabna.Communication.Tcp.TcpServer
                     {
                         thread.Abort();
                     }
-                    catch
+                    catch (Exception ex)
                     {
                         // ignored
                     }
@@ -126,7 +126,7 @@ namespace Mabna.Communication.Tcp.TcpServer
 
                 handler?.BeginReceive(state.Buffer, 0, state.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
             }
-            catch
+            catch (Exception ex)
             {
                 // ignored
             }
@@ -146,7 +146,7 @@ namespace Mabna.Communication.Tcp.TcpServer
             {
                 bytesRead = handler.EndReceive(ar);
             }
-            catch
+            catch (Exception ex)
             {
                 return;
             }
@@ -167,7 +167,7 @@ namespace Mabna.Communication.Tcp.TcpServer
             {
                 handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
             }
-            catch
+            catch (Exception ex)
             {
                 // ignored
             }
