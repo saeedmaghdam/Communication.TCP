@@ -21,6 +21,8 @@ namespace Mabna.Communication.Tcp.TcpServer
 
         public event EventHandler<DataReceivedEventArgs> DataReceived;
         public event EventHandler<PacketReceivedEventArgs> PacketReceived;
+        public event EventHandler<ConnectedEventArgs> Connected;
+        public event EventHandler<DisconnectedEventArgs> Disconnected;
 
         private void OnDataReceived(DataReceivedEventArgs e)
         {
@@ -31,6 +33,18 @@ namespace Mabna.Communication.Tcp.TcpServer
         private void OnPacketReceived(PacketReceivedEventArgs e)
         {
             EventHandler<PacketReceivedEventArgs> handler = PacketReceived;
+            handler?.Invoke(this, e);
+        }
+
+        private void OnConnected(ConnectedEventArgs e)
+        {
+            EventHandler<ConnectedEventArgs> handler = Connected;
+            handler?.Invoke(this, e);
+        }
+
+        private void OnDisconnected(DisconnectedEventArgs e)
+        {
+            EventHandler<DisconnectedEventArgs> handler = Disconnected;
             handler?.Invoke(this, e);
         }
 
@@ -117,16 +131,32 @@ namespace Mabna.Communication.Tcp.TcpServer
         private void AcceptCallback(IAsyncResult ar)
         {
             _allDone.Set();
+            Socket listener = default(Socket);
             try
             {
-                var listener = (Socket)ar.AsyncState;
+                listener = (Socket)ar.AsyncState;
                 var handler = listener?.EndAccept(ar);
+
+                OnConnected(new ConnectedEventArgs()
+                {
+                    Socket = handler
+                });
 
                 var state = new StateObject(handler);
 
                 //return;
 
                 handler?.BeginReceive(state.Buffer, 0, state.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
+            }
+            catch (SocketException ex)
+            {
+                if (ex.ErrorCode == 10054)
+                {
+                    OnDisconnected(new DisconnectedEventArgs()
+                    {
+                        Socket = listener
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -148,6 +178,16 @@ namespace Mabna.Communication.Tcp.TcpServer
             {
                 bytesRead = handler.EndReceive(ar);
             }
+            catch (SocketException ex)
+            {
+                if (ex.ErrorCode == 10054)
+                {
+                    OnDisconnected(new DisconnectedEventArgs()
+                    {
+                        Socket = handler
+                    });
+                }
+            }
             catch (Exception ex)
             {
                 return;
@@ -168,6 +208,16 @@ namespace Mabna.Communication.Tcp.TcpServer
             try
             {
                 handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
+            }
+            catch (SocketException ex)
+            {
+                if (ex.ErrorCode == 10054)
+                {
+                    OnDisconnected(new DisconnectedEventArgs()
+                    {
+                        Socket = handler
+                    });
+                }
             }
             catch (Exception ex)
             {

@@ -9,6 +9,8 @@ namespace Mabna.Communication.Tcp.Framework
     {
         event EventHandler<DataReceivedEventArgs> DataReceived;
         event EventHandler<PacketReceivedEventArgs> PacketReceived;
+        event EventHandler<ConnectedEventArgs> Connected;
+        event EventHandler<DisconnectedEventArgs> Disconnected;
 
         Task StartAsync(CancellationToken cancellationToken);
 
