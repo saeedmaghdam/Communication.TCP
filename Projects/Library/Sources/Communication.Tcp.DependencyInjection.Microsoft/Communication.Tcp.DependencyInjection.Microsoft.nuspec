@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>Mabna.Communication.Tcp.DependencyInjection.Microsoft.v1</id>
+    <version>1.0.0</version>
+    <title>Mabna.Communication.Tcp.DependencyInjection.Microsoft.v1</title>
+    <authors>Mabna</authors>
+    <owners>Mabna</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Mabna Communication.Tcp's microsoft dependency injection extension v1</description>
+    <copyright>Copyright 2004-2021 Mabna</copyright>
+    <dependencies>
+	  <group targetFramework=".NetStandard2.1">
+		  <dependency id="Microsoft.Extensions.DependencyInjection" version="5.0.1" />
+	  </group>
+    </dependencies>
+  </metadata>
+  <files>
+	<file src="../../Output/Mabna.Communication.Tcp.DependencyInjection.Microsoft.v1.dll" target="lib\netstandard2.1" />
+  </files>
+</package>

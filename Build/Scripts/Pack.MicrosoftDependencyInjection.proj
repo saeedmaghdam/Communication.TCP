@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<Import Project="Build.MicrosoftDependencyInjection.proj" Condition="'$(ImportedBuild)' == ''" />
+
+	<PropertyGroup>
+		<BuildToolsPath>$(BuildProjectsPath)\Tools</BuildToolsPath>
+		<BuildPackPath>$(BuildLibrarySourcesPath)\Communication.Tcp.DependencyInjection.Microsoft</BuildPackPath>
+		<BuildOutputPackPath>$(BuildOutputPath)\Pack</BuildOutputPackPath>
+	</PropertyGroup>
+
+	<Target Name="PackMicrosoftDependencyInjection">
+		<CallTarget Targets="BuildMicrosoftDependencyInjection" />
+		<Exec Command="$(BuildToolsPath)\nuget.exe pack $(BuildPackPath)\Communication.Tcp.DependencyInjection.Microsoft.nuspec -OutputDirectory $(BuildOutputPackPath) -prop OutDir=$(BuildOutputPackPath) -IncludeReferencedProjects" />
+	</Target>
+
+</Project>

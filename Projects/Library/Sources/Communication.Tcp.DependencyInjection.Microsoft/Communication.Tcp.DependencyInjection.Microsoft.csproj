@@ -1,12 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>Mabna.Communication.Tcp.DependencyInjection.Microsoft.v1</AssemblyName>
     <RootNamespace>Mabna.Communication.Tcp.DependencyInjection.Microsoft</RootNamespace>
     <Authors>Mabna</Authors>
     <Copyright>Copyright 2004-2021 Mabna</Copyright>
   </PropertyGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(TargetDir)Mabna.Communication.Tcp.DependencyInjection.Microsoft.v1.dll" DestinationFolder="$(ProjectDir)..\..\Output\" />
+    <Copy SourceFiles="$(TargetDir)Mabna.Communication.Tcp.DependencyInjection.Microsoft.v1.pdb" DestinationFolder="$(ProjectDir)..\..\Output\" />
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.1" />

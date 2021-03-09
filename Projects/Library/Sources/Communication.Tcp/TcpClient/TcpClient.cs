@@ -138,7 +138,7 @@ namespace Mabna.Communication.Tcp.TcpClient
 
                     return RaisePacketFailedToSendEvent(state, packet);
                 }
-                catch (Exception ex)
+                catch
                 {
                     await Task.Delay(10, cancellationToken);
                 }

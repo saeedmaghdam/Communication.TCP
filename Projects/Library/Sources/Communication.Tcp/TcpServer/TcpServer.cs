@@ -79,7 +79,7 @@ namespace Mabna.Communication.Tcp.TcpServer
                         _allDone.WaitOne();
                     }
                 }
-                catch (Exception ex)
+                catch
                 {
                     // ignored
                 }
@@ -88,7 +88,7 @@ namespace Mabna.Communication.Tcp.TcpServer
                 {
                     _listenerSocket.Close();
                 }
-                catch (Exception ex)
+                catch
                 {
                     // ignored
                 }
@@ -108,7 +108,7 @@ namespace Mabna.Communication.Tcp.TcpServer
                     {
                         thread.Abort();
                     }
-                    catch (Exception ex)
+                    catch
                     {
                         // ignored
                     }
@@ -158,7 +158,7 @@ namespace Mabna.Communication.Tcp.TcpServer
                     });
                 }
             }
-            catch (Exception ex)
+            catch
             {
                 // ignored
             }
@@ -188,7 +188,7 @@ namespace Mabna.Communication.Tcp.TcpServer
                     });
                 }
             }
-            catch (Exception ex)
+            catch
             {
                 return;
             }
@@ -219,7 +219,7 @@ namespace Mabna.Communication.Tcp.TcpServer
                     });
                 }
             }
-            catch (Exception ex)
+            catch
             {
                 // ignored
             }

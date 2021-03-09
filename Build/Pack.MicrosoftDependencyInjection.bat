@@ -1,0 +1,2 @@
+dotnet msbuild Scripts\Pack.MicrosoftDependencyInjection.proj /target:PackMicrosoftDependencyInjection
+pause

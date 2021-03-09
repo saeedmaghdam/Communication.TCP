@@ -35,8 +35,7 @@ namespace Communication.Tcp.Tests
         private long _totalBytesReceived;
 
         private List<Thread> _threads;
-
-        private CancellationToken _startCancellationToken;
+        
         private bool _isFinished = false;
 
         public Worker(ILogger<Worker> logger, ITcpServerBuilder tcpServerBuilder, ITcpClientBuilder tcpClientBuilder)
