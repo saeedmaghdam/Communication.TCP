@@ -12,6 +12,8 @@
         // Bit 6    =   *RESERVED
         // Bit 7    =   *RESERVED
 
+        ICommandOptionsBuilder CreateFreshInstance();
+
         ICommandOptionsBuilder AckRequired(bool val = true);
 
         ICommandOptionsBuilder ResponseRequired(bool val = true);

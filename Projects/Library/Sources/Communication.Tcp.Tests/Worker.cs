@@ -78,7 +78,7 @@ namespace Communication.Tcp.Tests
                 if (cancellationToken.IsCancellationRequested)
                     return;
 
-                _threads.Add(new Thread(async () =>
+                _threads.Add(new Thread(() =>
                 {
                     var tcpClient = _tcpClientBuilder.Create().IPAddress(_ipAddress).Port(11000).Build();
                     tcpClient.PacketSent += (sender, args) =>

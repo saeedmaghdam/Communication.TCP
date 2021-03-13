@@ -9,6 +9,11 @@ namespace Mabna.Communication.Tcp.Common
 
         public CommandOptionsBuilder() { }
 
+        public ICommandOptionsBuilder CreateFreshInstance()
+        {
+            return new CommandOptionsBuilder();
+        }
+
         public ICommandOptionsBuilder AckRequired(bool val = true)
         {
             _ackRequired = val;
