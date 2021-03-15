@@ -13,6 +13,8 @@ namespace Mabna.Communication.Tcp.TcpClient
 
         private byte[] _tail;
 
+        private IPAddress _localIpAddress;
+
         private IPAddress _ipAddress;
 
         private int _port;
@@ -43,6 +45,16 @@ namespace Mabna.Communication.Tcp.TcpClient
             return this;
         }
 
+        public ITcpClientBuilder LocalIPAddress(IPAddress ipAddress)
+        {
+            if (_localIpAddress != null)
+                throw new Exception("Local IP address is specified more than once.");
+
+            _localIpAddress = ipAddress;
+
+            return this;
+        }
+
         public ITcpClientBuilder IPAddress(IPAddress ipAddress)
         {
             if (_ipAddress != null)
@@ -66,7 +78,7 @@ namespace Mabna.Communication.Tcp.TcpClient
         public ITcpClient Build()
         {
             var packetConfig = new PacketConfig(_header, _tail);
-            var socketConfig = new SocketConfig(_ipAddress, _port);
+            var socketConfig = new SocketConfig(_localIpAddress, _ipAddress, _port);
 
             return new TcpClient(socketConfig, packetConfig, _packetParser, _commandOptionsBuilder);
         }

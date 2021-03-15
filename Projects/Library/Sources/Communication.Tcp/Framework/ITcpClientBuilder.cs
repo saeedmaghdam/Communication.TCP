@@ -8,6 +8,8 @@ namespace Mabna.Communication.Tcp.Framework
 
         ITcpClientBuilder Tail(byte[] bytes);
 
+        ITcpClientBuilder LocalIPAddress(IPAddress ipAddress);
+
         ITcpClientBuilder IPAddress(IPAddress ipAddress);
 
         ITcpClientBuilder Port(int port);

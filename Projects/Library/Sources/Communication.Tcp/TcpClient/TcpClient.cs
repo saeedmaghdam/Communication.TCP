@@ -125,7 +125,7 @@ namespace Mabna.Communication.Tcp.TcpClient
                             state.ReceiveCache.AddRange(state.ReceiveBuffer.Take(receiveArgs.BytesTransferred));
 
                             int tryAttempts = 10;
-                            while (tryAttempts-- != 0)
+                            while (true)
                             {
                                 if (_socket.Available > 0)
                                 {
@@ -221,7 +221,7 @@ namespace Mabna.Communication.Tcp.TcpClient
             _socket = new Socket(_socketConfig.IPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             _socket.ReceiveTimeout = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
-            _socket.Bind(new IPEndPoint(_socketConfig.IPAddress, 0));
+            _socket.Bind(new IPEndPoint(_socketConfig.LocalIPAddress, 0));
         }
     }
 }
