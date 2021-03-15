@@ -8,6 +8,7 @@ namespace Mabna.Communication.Tcp.TcpClient
     {
         public int BufferSize => 1024;
         private byte[] _buffer;
+        private List<byte> _receiveCache = new List<byte>();
         private List<byte> _cache = new List<byte>();
 
         public byte[] Buffer
@@ -41,6 +42,12 @@ namespace Mabna.Communication.Tcp.TcpClient
         }
 
         public byte[] ReceiveBuffer
+        {
+            get;
+            set;
+        }
+
+        public List<byte> ReceiveCache
         {
             get;
             set;

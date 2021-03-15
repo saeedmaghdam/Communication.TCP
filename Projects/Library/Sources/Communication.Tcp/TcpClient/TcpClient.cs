@@ -98,6 +98,7 @@ namespace Mabna.Communication.Tcp.TcpClient
                     var sendArgs = new SocketAsyncEventArgs();
                     var bytes = packet.GetBytes().ToArray();
                     sendArgs.SetBuffer(bytes, 0, bytes.Length);
+
                     await _socket.SendAsync(new ClientSocketAwaitable(sendArgs));
 
                     OnDataSent(new DataSentEventArg()
@@ -116,24 +117,29 @@ namespace Mabna.Communication.Tcp.TcpClient
                         receiveArgs.SetBuffer(state.ReceiveBuffer);
 
                         await _socket.ReceiveAsync(new ClientSocketAwaitable(receiveArgs));
-                        if (receiveArgs.BytesTransferred == 0)
-                            return RaisePacketFailedToSendEvent(state, packet);
 
                         var isPackedDetected = _packetParser.TryParse(_packetConfig, state.ReceiveBuffer, receiveArgs.BytesTransferred, out var model);
 
                         if (!isPackedDetected)
                         {
+                            state.ReceiveCache.AddRange(state.ReceiveBuffer.Take(receiveArgs.BytesTransferred));
+
                             int tryAttempts = 10;
                             while (tryAttempts-- != 0)
                             {
-                                if (_socket.Poll(10_000, SelectMode.SelectRead))
+                                if (_socket.Available > 0)
+                                {
                                     await _socket.ReceiveAsync(new ClientSocketAwaitable(receiveArgs));
+                                    state.ReceiveCache.AddRange(state.ReceiveBuffer.Take(receiveArgs.BytesTransferred));
+                                }
                                 else
+                                {
                                     await Task.Delay(500, cancellationToken);
+                                }
                             }
                         }
 
-                        if (!isPackedDetected && _packetParser.TryParse(_packetConfig, state.ReceiveBuffer, receiveArgs.BytesTransferred, out model))
+                        if (!isPackedDetected && _packetParser.TryParse(_packetConfig, state.ReceiveCache.ToArray(), state.ReceiveCache.Count, out model))
                             return RaisePacketFailedToSendEvent(state, packet);
 
                         if ((commandOptions.ResponseRequired) || (commandOptions.AckRequired && _ack.GetBytes().SequenceEqual(model.GetBytes()))) // If client has requested response or ack
@@ -181,7 +187,7 @@ namespace Mabna.Communication.Tcp.TcpClient
 
         public async Task<ClientSendAsyncResult> SendCommandAsync(byte command, byte[] data, CancellationToken cancellationToken)
         {
-            var commandOptions = _commandOptionsBuilder.AckRequired(true).Build();
+            var commandOptions = _commandOptionsBuilder.AckRequired(false).Build();
 
             return await SendCommandAsync(command, commandOptions, data, cancellationToken);
         }
