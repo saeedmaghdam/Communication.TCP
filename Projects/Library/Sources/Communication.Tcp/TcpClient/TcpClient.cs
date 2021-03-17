@@ -100,6 +100,7 @@ namespace Mabna.Communication.Tcp.TcpClient
                     sendArgs.SetBuffer(bytes, 0, bytes.Length);
 
                     await _socket.SendAsync(new ClientSocketAwaitable(sendArgs));
+                    await Task.Delay(10, cancellationToken);
 
                     OnDataSent(new DataSentEventArg()
                     {

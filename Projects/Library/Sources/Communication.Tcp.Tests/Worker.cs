@@ -78,9 +78,9 @@ namespace Communication.Tcp.Tests
                 if (cancellationToken.IsCancellationRequested)
                     return;
 
-                _threads.Add(new Thread(() =>
+                _threads.Add(new Thread(async () =>
                 {
-                    var tcpClient = _tcpClientBuilder.Create().IPAddress(_ipAddress).Port(11000).Build();
+                    var tcpClient = _tcpClientBuilder.Create().LocalIPAddress(_ipAddress).IPAddress(_ipAddress).Port(11000).Build();
                     tcpClient.PacketSent += (sender, args) =>
                     {
                         Interlocked.Add(ref _totalPacketsCountedByPacketSentEvent, 1);
@@ -106,7 +106,7 @@ namespace Communication.Tcp.Tests
                             if (cancellationToken.IsCancellationRequested)
                                 return;
 
-                            result = tcpClient.SendCommandAsync(0xAA, BitConverter.GetBytes(data), cancellationToken).Result;
+                            result = tcpClient.SendCommandAsync(0xAA, 0x00, BitConverter.GetBytes(data), cancellationToken).Result;
                             if (result.IsSent)
                                 Interlocked.Increment(ref _totalPacketsCountedByThread);
                         }
