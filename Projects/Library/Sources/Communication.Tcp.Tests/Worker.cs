@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Mabna.Communication.Tcp.Framework;
@@ -38,13 +38,21 @@ namespace Communication.Tcp.Tests
         
         private bool _isFinished = false;
 
-        public Worker(ILogger<Worker> logger, ITcpServerBuilder tcpServerBuilder, ITcpClientBuilder tcpClientBuilder)
+        private readonly CommandOptions _commandOptions;
+        private readonly byte _commandOptionsByte;
+
+        public Worker(ILogger<Worker> logger, ITcpServerBuilder tcpServerBuilder, ITcpClientBuilder tcpClientBuilder, ICommandOptionsBuilder commandOptionsBuilder)
         {
+            _commandOptionsByte = commandOptionsBuilder
+                .ResponseRequired()
+                .Build();
+            CommandOptions.TryParse(_commandOptionsByte, out _commandOptions);
+
             _logger = logger;
             _tcpServerBuilder = tcpServerBuilder;
             _tcpClientBuilder = tcpClientBuilder;
 
-            _ipAddress = IPAddress.Parse("127.0.0.1");
+            _ipAddress = IPAddress.Parse("192.168.7.44");
             _tcpServer = _tcpServerBuilder.IPAddress(_ipAddress).Port(11000).Build();
             _totalPacketsReceivedByListener = 0;
             var stopWatch = new Stopwatch();
@@ -56,6 +64,14 @@ namespace Communication.Tcp.Tests
                 var commandArray = packet.GetBytes().ToArray();
                 if (commandArray.Any())
                     _logger.LogInformation($"{string.Join(" ", BitConverter.ToString(commandArray).Split("-").Select(x => "0x" + x))}\r\nPackets received: {++_totalPacketsReceivedByListener}");
+
+                if (_commandOptions.ResponseRequired)
+                {
+                    var sendArgs = new SocketAsyncEventArgs();
+                    var bytes = packet.GetBytes().ToArray();
+                    sendArgs.SetBuffer(bytes, 0, bytes.Length);
+                    args.Socket.SendAsync(new ClientSocketAwaitable(sendArgs));
+                }
             };
 
             _tcpServer.DataReceived += (sender, args) =>
@@ -106,7 +122,7 @@ namespace Communication.Tcp.Tests
                             if (cancellationToken.IsCancellationRequested)
                                 return;
 
-                            result = tcpClient.SendCommandAsync(0xAA, 0x00, BitConverter.GetBytes(data), cancellationToken).Result;
+                            result = tcpClient.SendCommandAsync(0xAA, _commandOptionsByte, BitConverter.GetBytes(data), cancellationToken).Result;
                             if (result.IsSent)
                                 Interlocked.Increment(ref _totalPacketsCountedByThread);
                         }
@@ -164,7 +180,7 @@ namespace Communication.Tcp.Tests
             _logger.LogInformation($"Total bytes received:\t\t\t {_totalBytesReceived.ToString("N0")}");
             _logger.LogInformation($"=================================================================================================================");
 
-            if (_totalPacketsCountedByThread != _totalPacketsCountedByPacketSentEvent)
+            if (_commandOptionsByte != 0x00 && _totalPacketsCountedByThread != _totalPacketsCountedByPacketSentEvent)
             {
                 _logger.LogError($"_totalPacketsCountedByThread != _totalPacketsCountedByPacketSentEvent => An error found in packets' sent, packets counted by awaited result in _threads ({_totalPacketsCountedByThread}) are not equal to packets counted by PacketSentEvent ({_totalPacketsCountedByPacketSentEvent}).");
                 _logger.LogInformation($"=================================================================================================================");
@@ -176,7 +192,7 @@ namespace Communication.Tcp.Tests
                 _logger.LogInformation($"=================================================================================================================");
             }
 
-            if (_totalPacketsReceivedByListener != _totalPacketsCountedByPacketSentEvent)
+            if (_commandOptionsByte != 0x00 && _totalPacketsReceivedByListener != _totalPacketsCountedByPacketSentEvent)
             {
                 _logger.LogError($"_totalPacketsReceivedByListener != _totalPacketsCountedByPacketSentEvent => Totally received {_totalPacketsReceivedByListener} packets by listener which is not equal to {_totalPacketsCountedByPacketSentEvent} packets counted by await result in PacketSentEvent.");
                 _logger.LogInformation($"=================================================================================================================");
