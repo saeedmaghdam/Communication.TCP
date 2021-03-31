@@ -25,5 +25,15 @@ namespace Mabna.Communication.Tcp.Common
         {
             return string.Join(" ", BitConverter.ToString(data).Split("-").Select(x => "0x" + x));
         }
+
+        public static string ToHex(this byte b)
+        {
+            return string.Join(" ", BitConverter.ToString(new byte[] { b }).Split("-").Select(x => "0x" + x));
+        }
+
+        public static string DisplayByteArrayAsHex(this IEnumerable<byte> data)
+        {
+            return string.Join(" ", BitConverter.ToString(data.ToArray()).Split("-").Select(x => "0x" + x));
+        }
     }
 }

@@ -6,11 +6,13 @@ using System.Threading.Tasks;
 using Mabna.Communication.Tcp.Common;
 using Mabna.Communication.Tcp.Framework;
 using Mabna.Communication.Tcp.TcpServer.Event;
+using Microsoft.Extensions.Logging;
 
 namespace Mabna.Communication.Tcp.TcpServer
 {
     public class TcpServer : ITcpServer
     {
+        private readonly ILogger<TcpServer> _logger;
         private readonly PacketConfig _packetConfig;
         private readonly SocketConfig _socketConfig;
         private readonly IPacketProcessor _packetProcessor;
@@ -48,8 +50,9 @@ namespace Mabna.Communication.Tcp.TcpServer
             handler?.Invoke(this, e);
         }
 
-        public TcpServer(PacketConfig packetConfig, SocketConfig socketConfig, IPacketProcessor packetProcessor)
+        public TcpServer(ILogger<TcpServer> logger, PacketConfig packetConfig, SocketConfig socketConfig, IPacketProcessor packetProcessor)
         {
+            _logger = logger;
             _packetProcessor = packetProcessor;
             _socketConfig = socketConfig;
             _packetConfig = packetConfig;
@@ -57,6 +60,9 @@ namespace Mabna.Communication.Tcp.TcpServer
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
+            var activity = ActivityHelper.Start();
+            _logger.LogInformation("Starting TCP Server ...");
+
             var thread = new Thread(() =>
             {
                 var localEndPoint = new IPEndPoint(_socketConfig.IPAddress, _socketConfig.Port);
@@ -70,10 +76,13 @@ namespace Mabna.Communication.Tcp.TcpServer
                     _listenerSocket.Bind(localEndPoint);
                     _listenerSocket.Listen(100);
 
+                    _logger.LogTrace("Initialized the listener socket.");
+
                     while (_isListening)
                     {
                         _allDone.Reset();
 
+                        _logger.LogTrace("Waiting for a connection to be established ...");
                         _listenerSocket.BeginAccept(new AsyncCallback(AcceptCallback), _listenerSocket);
 
                         _allDone.WaitOne();
@@ -126,10 +135,15 @@ namespace Mabna.Communication.Tcp.TcpServer
                 }
             }
             while (true);
+
+            _logger.LogInformation("TCP Server stopped.");
+            activity.Stop();
         }
 
         private void AcceptCallback(IAsyncResult ar)
         {
+            var activity = ActivityHelper.Start();
+
             _allDone.Set();
             Socket listener = default(Socket);
             try
@@ -146,31 +160,45 @@ namespace Mabna.Communication.Tcp.TcpServer
 
                 //return;
 
+                _logger.LogTrace("Accepted the new connection, Receiving data from the socket ...");
                 handler?.BeginReceive(state.Buffer, 0, state.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
             }
             catch (SocketException ex)
             {
                 if (ex.ErrorCode == 10054)
                 {
+                    _logger.LogTrace("Connection disconnected while accepting the connection.");
+
                     OnDisconnected(new DisconnectedEventArgs()
                     {
                         Socket = listener
                     });
+                }
+                else
+                {
+                    _logger.LogError("An error occured while accepting the connection, error body: {Error}", ex.ToString());
                 }
             }
             catch
             {
                 // ignored
             }
+
+            activity.Stop();
         }
 
         private void ReceiveCallback(IAsyncResult ar)
         {
+            var activity = ActivityHelper.Start();
+
             var state = (StateObject)ar.AsyncState;
             var handler = state?.Socket;
 
             if (handler == null)
+            {
+                _logger.LogError("Socket was null.");
                 return;
+            }
 
             int bytesRead = 0;
 
@@ -182,10 +210,16 @@ namespace Mabna.Communication.Tcp.TcpServer
             {
                 if (ex.ErrorCode == 10054)
                 {
+                    _logger.LogTrace("Connection disconnected while receiving from the network.");
+
                     OnDisconnected(new DisconnectedEventArgs()
                     {
                         Socket = handler
                     });
+                }
+                else
+                {
+                    _logger.LogError("An error occured while receiving from the network, error body: {Error}", ex.ToString());
                 }
             }
             catch
@@ -195,6 +229,8 @@ namespace Mabna.Communication.Tcp.TcpServer
 
             if (bytesRead <= 0)
                 return;
+
+            _logger.LogTrace("Received totally {TotalBytes} bytes from network.", bytesRead);
 
             OnDataReceived(new DataReceivedEventArgs
             {
@@ -207,22 +243,31 @@ namespace Mabna.Communication.Tcp.TcpServer
 
             try
             {
+                _logger.LogTrace("Receiving rest of the data from the socket ...");
                 handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
             }
             catch (SocketException ex)
             {
                 if (ex.ErrorCode == 10054)
                 {
+                    _logger.LogTrace("Connection disconnected while receiving from the network.");
+
                     OnDisconnected(new DisconnectedEventArgs()
                     {
                         Socket = handler
                     });
+                }
+                else
+                {
+                    _logger.LogError("An error occured while receiving from the network, error body: {Error}", ex.ToString());
                 }
             }
             catch
             {
                 // ignored
             }
+
+            activity.Stop();
         }
 
         public void Shutdown()

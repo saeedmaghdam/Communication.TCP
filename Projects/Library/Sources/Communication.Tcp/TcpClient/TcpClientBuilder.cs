@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Net;
 using Mabna.Communication.Tcp.Framework;
+using Microsoft.Extensions.Logging;
 
 namespace Mabna.Communication.Tcp.TcpClient
 {
     public class TcpClientBuilder : ITcpClientBuilder
     {
+        private readonly ILogger<TcpClient> _tcpClientLogger;
         private readonly IPacketParser _packetParser;
         private readonly ICommandOptionsBuilder _commandOptionsBuilder;
 
@@ -19,10 +21,11 @@ namespace Mabna.Communication.Tcp.TcpClient
 
         private int _port;
 
-        public TcpClientBuilder(IPacketParser packetParser, ICommandOptionsBuilder commandOptionsBuilder)
+        public TcpClientBuilder(ILogger<TcpClient> tcpLogger, IPacketParser packetParser, ICommandOptionsBuilder commandOptionsBuilder)
         {
             _packetParser = packetParser;
             _commandOptionsBuilder = commandOptionsBuilder;
+            _tcpClientLogger = tcpLogger;
         }
 
         public ITcpClientBuilder Header(byte[] bytes)
@@ -80,12 +83,12 @@ namespace Mabna.Communication.Tcp.TcpClient
             var packetConfig = new PacketConfig(_header, _tail);
             var socketConfig = new SocketConfig(_localIpAddress, _ipAddress, _port);
 
-            return new TcpClient(socketConfig, packetConfig, _packetParser, _commandOptionsBuilder);
+            return new TcpClient(_tcpClientLogger, socketConfig, packetConfig, _packetParser, _commandOptionsBuilder);
         }
 
         public ITcpClientBuilder Create()
         {
-            return new TcpClientBuilder(_packetParser, _commandOptionsBuilder);
+            return new TcpClientBuilder(_tcpClientLogger, _packetParser, _commandOptionsBuilder);
         }
     }
 }

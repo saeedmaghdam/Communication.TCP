@@ -2,11 +2,13 @@
 using System.Net;
 using System.Threading;
 using Mabna.Communication.Tcp.Framework;
+using Microsoft.Extensions.Logging;
 
 namespace Mabna.Communication.Tcp.TcpServer
 {
     public class TcpServerBuilder : ITcpServerBuilder
     {
+        private readonly ILogger<TcpServer> _tcpServerLogger;
         private readonly IPacketParser _packetParser;
         private readonly IPacketProcessor _packetProcessor;
 
@@ -18,8 +20,9 @@ namespace Mabna.Communication.Tcp.TcpServer
 
         private int _port;
 
-        public TcpServerBuilder(IPacketParser packetParser, IPacketProcessor packetProcessor)
+        public TcpServerBuilder(ILogger<TcpServer> tcpServerLogger, IPacketParser packetParser, IPacketProcessor packetProcessor)
         {
+            _tcpServerLogger = tcpServerLogger;
             _packetParser = packetParser;
             _packetProcessor = packetProcessor;
         }
@@ -72,12 +75,12 @@ namespace Mabna.Communication.Tcp.TcpServer
             _packetProcessor.Initialize(packetConfig);
             _packetProcessor.StartAsync(CancellationToken.None);
 
-            return new TcpServer(packetConfig, socketConfig, _packetProcessor);
+            return new TcpServer(_tcpServerLogger, packetConfig, socketConfig, _packetProcessor);
         }
 
         public ITcpServerBuilder Create()
         {
-            return new TcpServerBuilder(_packetParser, _packetProcessor);
+            return new TcpServerBuilder(_tcpServerLogger, _packetParser, _packetProcessor);
         }
     }
 }

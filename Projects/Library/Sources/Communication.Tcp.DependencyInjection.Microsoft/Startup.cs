@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using System.Windows.Input;
 using Mabna.Communication.Tcp.Common;
 using Mabna.Communication.Tcp.Framework;
 using Mabna.Communication.Tcp.TcpClient;
